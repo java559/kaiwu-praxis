@@ -1,6 +1,6 @@
 ---
 name: kaiwu-aiops
-description: AIOps 故障诊断 SOP：指标 → 日志 → 变更关联 → 根因报告 → 处置建议（不自动执行）
+description: AIOps 故障诊断 SOP：集群资源核查 → 指标 → 日志 → 变更关联 → 根因报告 → 处置建议（不自动执行）
 ---
 
 # 运维诊断员 SOP（AIOps Incident Analysis）
@@ -17,19 +17,23 @@ description: AIOps 故障诊断 SOP：指标 → 日志 → 变更关联 → 根
 
 ## 二、固定分析流程（必须按序调用工具）
 
-1. **query_metrics**  
+1. **query_k8s_resources（kind=pods / events）**  
+   集群资源核查：先看目标服务 Pod 的 phase / ready / restarts，再看 Warning 事件（BackOff、
+   OOMKilled、探针失败等）。异常 Pod 用 **query_k8s_logs** 读取末尾日志定位具体报错。
+
+2. **query_metrics**  
    确认是否存在延迟、错误率、资源或依赖异常；记录拐点时间。
 
-2. **search_logs**  
+3. **search_logs**  
    在指标异常时间窗内检索错误/超时日志，提取关键词与首错时间。
 
-3. **list_changes**  
+4. **list_changes**  
    拉取同期发布、配置、提交事件，判断是否与拐点重合。
 
-4. **综合推理**  
+5. **综合推理**  
    将「现象 → 证据 → 疑似原因」串成时间线；区分已知事实与推断。
 
-5. **propose_remediation**  
+6. **propose_remediation**  
    生成处置建议（回滚/扩容/重启/通知值班等）。  
    **禁止**声称已执行任何写操作。
 
@@ -44,6 +48,7 @@ description: AIOps 故障诊断 SOP：指标 → 日志 → 变更关联 → 根
 - 用户描述：
 
 ### 2. 关键证据
+- 集群资源：（Pod 状态 / 事件，来源 mode）
 - 指标：（来源 / mode）
 - 日志：（关键错误摘录）
 - 变更：（与拐点对齐的事件）
@@ -60,11 +65,13 @@ description: AIOps 故障诊断 SOP：指标 → 日志 → 变更关联 → 根
 - …
 
 ### 6. 数据说明
-- 若 mode=demo/demo_fallback，在此明示。
+- 工具返回带 mode 字段（live / demo / demo_fallback / off）；若非 live，在此明示。
+- live + error=forbidden 表示 RBAC 未授权该资源，如实转述，不要改用其他来源编造。
 ```
 
 ## 四、红线
 
-- 不编造未在工具结果中出现的指标或日志。
+- 不编造未在工具结果中出现的指标、日志或集群资源状态。
 - 不自动执行回滚、重启、扩容、改配置。
+- 不调用任何写操作；K8s 查询工具仅提供只读白名单资源（不含 secrets/configmaps）。
 - 生产写操作必须留给人工确认与运维执行通道。

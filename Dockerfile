@@ -54,8 +54,10 @@ RUN mkdir -p /opt/kaiwu-home-template/profiles/employee \
         > /opt/kaiwu-home-template/profiles/employee/pnpm-workspace.yaml
 # 在本 RUN 的 shell 内 export DSH_HOME：对后续所有 dsh plugin 生效，
 # 但只存在于该构建层进程，不会写入镜像 ENV（避免运行期 Deployment 漏设时兜底失效）。
+# 仓库迁移：原地址为前任的 hemuroukLY/kaiwu-praxis，现构建一律拉当前 origin
+# （java559/kaiwu-praxis）；改仓库时需同步更新 README 安装命令与交接文档。
 RUN export DSH_HOME=/opt/kaiwu-home-template \
-    && dsh plugin --profile employee add git+https://github.com/hemuroukLY/kaiwu-praxis.git \
+    && dsh plugin --profile employee add git+https://github.com/java559/kaiwu-praxis.git \
     && dsh plugin --profile employee add @nanmicoder/dsh-agent-teams@0.1.16-rc.1 \
     && dsh plugin --profile employee add @vectorize-io/hindsight-coding-agents@0.4.3 \
     && dsh plugin --profile employee add dsh-better-sidebar@0.18.1 \

@@ -1,0 +1,33 @@
+# 开物实例只读查询 ANI 集群资源：仅 get/list/watch，不含 secrets、configmaps
+# 与任何写操作。对话通道不承载凭证与密钥内容。
+# 注意：pods/log 是 subresource，只有 get 语义，与 pods 分开声明，不做无效授权。
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kaiwu-k8s-reader
+rules:
+  - apiGroups: [""]
+    resources: [pods, services, endpoints, events, namespaces, nodes]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [pods/log]
+    verbs: [get]
+  - apiGroups: ["apps"]
+    resources: [deployments, statefulsets, daemonsets, replicasets]
+    verbs: [get, list, watch]
+  - apiGroups: ["batch"]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kaiwu-k8s-reader
+subjects:
+  - kind: ServiceAccount
+    name: kaiwu-web-token-publisher
+    namespace: kaiwu
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kaiwu-k8s-reader

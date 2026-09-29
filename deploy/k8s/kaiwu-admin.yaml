@@ -33,6 +33,9 @@ spec:
         app: kaiwu
         component: admin
     spec:
+      # 与 console/boss 一致：in-cluster SA token 供 webToken 发布与 K8s 只读查询使用
+      # （不声明会落 default SA，kaiwu-k8s-reader 绑定不到，工具全部 403）
+      serviceAccountName: kaiwu-web-token-publisher
       securityContext:
         runAsUser: 1000
         runAsGroup: 1000

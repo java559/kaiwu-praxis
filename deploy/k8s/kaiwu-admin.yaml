@@ -41,7 +41,7 @@ spec:
         runAsGroup: 1000
       containers:
         - name: kaiwu
-          image: docker.changqingyun.cn/ani/kaiwu-employee:0.5.2-k8s.2
+          image: docker.changqingyun.cn/ani/kaiwu-employee:0.5.2-k8s.8
           imagePullPolicy: IfNotPresent
           env:
             - name: DSH_HOME

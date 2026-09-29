@@ -1,8 +1,13 @@
 FROM node:22-bookworm-slim
 
 ARG KAIWU_PROFILE_VERSION=0.5.2-k8s.6
+# 构建机上 npm 官方源延迟高（实测元数据请求 3.4s，npmmirror 1.3s），构建内统一换源；
+# 仅作用于构建期（运行期无 npm 安装）。如需回官方源：
+#   --build-arg NPM_REGISTRY=https://registry.npmjs.org
+ARG NPM_REGISTRY=https://registry.npmmirror.com
 ENV DEBIAN_FRONTEND=noninteractive \
-    KAIWU_PROFILE_VERSION=${KAIWU_PROFILE_VERSION}
+    KAIWU_PROFILE_VERSION=${KAIWU_PROFILE_VERSION} \
+    npm_config_registry=${NPM_REGISTRY}
 
 # python3/make/g++ 是 node-gyp 的编译三件套：node-pty@1.1.0 的 npm 包
 # prebuilds 只含 darwin/win32、没有 linux-x64，Linux 容器内 install 脚本

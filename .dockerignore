@@ -1,0 +1,8 @@
+node_modules
+.git
+.DS_Store
+测试报告
+docs
+*.zip
+*.exe
+*.log

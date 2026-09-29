@@ -1,0 +1,150 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kaiwu-boss-home
+  namespace: kaiwu
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: kaiwu-cephfs
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kaiwu-boss
+  namespace: kaiwu
+  labels:
+    app: kaiwu
+    component: boss
+    kaiwu.cn/instance: boss
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kaiwu
+      component: boss
+      kaiwu.cn/instance: boss
+  template:
+    metadata:
+      labels:
+        app: kaiwu
+        component: boss
+        kaiwu.cn/instance: boss
+    spec:
+      serviceAccountName: kaiwu-web-token-publisher
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: kaiwu
+          image: docker.changqingyun.cn/ani/kaiwu-employee:0.5.2-k8s.6
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DSH_HOME
+              value: /data/dsh
+            - name: KAIWU_PORT
+              value: "3080"
+            - name: KAIWU_INSTANCE_ID
+              value: boss
+            # 空格分隔的 host:port 白名单，只影响 /api/ 的 browser-trust 校验。
+            # 这里只写浏览器实际访问开物的 authority，语义同 kaiwu-console.yaml。
+            - name: KAIWU_TRUSTED_HOST
+              value: "10.10.1.66:30089"
+            - name: KAIWU_WEB_TOKEN_SECRET_NAME
+              value: kaiwu-boss-web-token
+            - name: KAIWU_WEB_TOKEN_TIMEOUT
+              value: "300"
+            - name: KAIWU_NAMESPACE
+              value: kaiwu
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - name: http
+              containerPort: 3080
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - curl -sS -o /dev/null --max-time 2 http://127.0.0.1:3081/
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - curl -sS -o /dev/null --max-time 2 http://127.0.0.1:3081/
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: home
+              mountPath: /data/dsh
+            - name: agent-presets
+              mountPath: /data/dsh/.agent-presets
+              readOnly: true
+      volumes:
+        - name: home
+          persistentVolumeClaim:
+            claimName: kaiwu-boss-home
+        - name: agent-presets
+          persistentVolumeClaim:
+            claimName: kaiwu-agent-presets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kaiwu-boss
+  namespace: kaiwu
+  labels:
+    app: kaiwu
+    component: boss
+    kaiwu.cn/instance: boss
+spec:
+  type: ClusterIP
+  selector:
+    app: kaiwu
+    component: boss
+    kaiwu.cn/instance: boss
+  ports:
+    - name: http
+      port: 3080
+      targetPort: http
+---
+# kaiwu-boss-public 是开物 BOSS 的浏览器入口，语义同 kaiwu-console-public。
+apiVersion: v1
+kind: Service
+metadata:
+  name: kaiwu-boss-public
+  namespace: kaiwu
+  labels:
+    app: kaiwu
+    component: boss
+    kaiwu.cn/instance: boss
+spec:
+  type: NodePort
+  selector:
+    app: kaiwu
+    component: boss
+    kaiwu.cn/instance: boss
+  ports:
+    - name: http
+      port: 3080
+      targetPort: http
+      nodePort: 30089

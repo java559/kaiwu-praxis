@@ -96,6 +96,27 @@ kaiwu-praxis/
         └── skills/<name>/SKILL.md
 ```
 
+## Kubernetes 部署（`deploy/k8s`）
+
+开物页面依赖根路径绝对资源（`/assets`、`/plugins`、`/api`），在子路径下无法运行，因此对外入口使用 **NodePort**，让开物独占一个 origin；ANI 网关只负责鉴权并下发入口地址，不做子路径反向代理。
+
+| 资源 | 类型 | 作用 |
+| --- | --- | --- |
+| `kaiwu-admin` | ClusterIP | 企业管理端中枢，负责下发数字员工（终端注册、配置与指令下发），不承载浏览器入口 |
+| `kaiwu-console` | ClusterIP | Console 实例内部地址，供 ANI 网关读取校验 |
+| `kaiwu-console-public` | NodePort `30088` | Console 浏览器入口 |
+| `kaiwu-boss` | ClusterIP | BOSS 实例内部地址，供 ANI 网关读取校验 |
+| `kaiwu-boss-public` | NodePort `30089` | BOSS 浏览器入口 |
+
+与 ANI 网关的接入约定：
+
+- 入口地址形如 `http://10.10.1.66:30088/?token=<webToken>`：网关鉴权通过后返回该绝对地址，前端只做 `window.location.assign` 跳转。
+- `?token=` 是 DSH 一次性启动凭据：DSH 收到后立即 `303` 跳转到 `/` 并换成自己的会话 Cookie，该地址不得写入日志、工单、截图或埋点。
+- `KAIWU_TRUSTED_HOST` 是**空格分隔**的 `host:port` 白名单，只影响 `/api/` 的 browser-trust 校验：只写浏览器实际访问开物的 authority（如 `10.10.1.66:30088`），未列入的 Host 访问 `/api/` 返回 403；改动后需重启 Pod。
+- 实例启动时把 DSH 的 `webToken` 发布到自己的 Secret：`kaiwu-console-web-token` / `kaiwu-boss-web-token`（key 为 `webToken`）。
+- RBAC 的 `kaiwu-web-token-reader` 只绑定 `ani-system` 下的 `ani-gateway`，这是入口 API 的最小权限；其他命名空间接入需自行追加绑定。
+- 网关侧对应配置为 `KAIWU_CONSOLE_PUBLIC_URL` / `KAIWU_BOSS_PUBLIC_URL`（只接受 origin，不能带子路径）与 `KAIWU_ENTRY_TOKEN_TTL`。
+
 ## 说明
 
 - 客户端 `lib/client.js` 是手写的「自注册 bundle」（`window.__ModuleLoader__.load`），**无需打包步骤**，直接作为 `exports["./client"]` 下发。

@@ -1,0 +1,110 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kaiwu-admin-home
+  namespace: kaiwu
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: kaiwu-cephfs
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kaiwu-admin
+  namespace: kaiwu
+  labels:
+    app: kaiwu
+    component: admin
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kaiwu
+      component: admin
+  template:
+    metadata:
+      labels:
+        app: kaiwu
+        component: admin
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: kaiwu
+          image: docker.changqingyun.cn/ani/kaiwu-employee:0.5.2-k8s.2
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DSH_HOME
+              value: /data/dsh
+            - name: KAIWU_PORT
+              value: "3080"
+            - name: KAIWU_TRUSTED_HOST
+              value: kaiwu-admin.example.com
+          ports:
+            - name: http
+              containerPort: 3080
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - curl -sS -o /dev/null --max-time 2 http://127.0.0.1:3081/
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - curl -sS -o /dev/null --max-time 2 http://127.0.0.1:3081/
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: home
+              mountPath: /data/dsh
+            - name: agent-presets
+              mountPath: /data/dsh/.agent-presets
+      volumes:
+        - name: home
+          persistentVolumeClaim:
+            claimName: kaiwu-admin-home
+        - name: agent-presets
+          persistentVolumeClaim:
+            claimName: kaiwu-agent-presets
+---
+# kaiwu-admin 是 ClusterIP：它是企业管理端中枢，负责下发数字员工
+# （终端注册、配置与指令下发），不承载浏览器入口，因此不需要 NodePort。
+# 如确需浏览器入口，另建 NodePort/Ingress 并把该 authority 写进
+# KAIWU_TRUSTED_HOST（现在是占位值 kaiwu-admin.example.com）。
+apiVersion: v1
+kind: Service
+metadata:
+  name: kaiwu-admin
+  namespace: kaiwu
+  labels:
+    app: kaiwu
+    component: admin
+spec:
+  type: ClusterIP
+  selector:
+    app: kaiwu
+    component: admin
+  ports:
+    - name: http
+      port: 3080
+      targetPort: http

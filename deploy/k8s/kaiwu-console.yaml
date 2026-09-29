@@ -1,0 +1,153 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kaiwu-console-home
+  namespace: kaiwu
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: kaiwu-cephfs
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kaiwu-console
+  namespace: kaiwu
+  labels:
+    app: kaiwu
+    component: console
+    kaiwu.cn/instance: console
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: kaiwu
+      component: console
+      kaiwu.cn/instance: console
+  template:
+    metadata:
+      labels:
+        app: kaiwu
+        component: console
+        kaiwu.cn/instance: console
+    spec:
+      serviceAccountName: kaiwu-web-token-publisher
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: kaiwu
+          image: docker.changqingyun.cn/ani/kaiwu-employee:0.5.2-k8s.6
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: DSH_HOME
+              value: /data/dsh
+            - name: KAIWU_PORT
+              value: "3080"
+            - name: KAIWU_INSTANCE_ID
+              value: console
+            # 空格分隔的 host:port 白名单，只影响 /api/ 的 browser-trust 校验。
+            # 这里只写浏览器实际访问开物的 authority；写 ANI 网关 authority
+            # 没有意义（浏览器不会带着它访问开物），反而放宽了这道 fence。
+            - name: KAIWU_TRUSTED_HOST
+              value: "10.10.1.66:30088"
+            - name: KAIWU_WEB_TOKEN_SECRET_NAME
+              value: kaiwu-console-web-token
+            - name: KAIWU_WEB_TOKEN_TIMEOUT
+              value: "300"
+            - name: KAIWU_NAMESPACE
+              value: kaiwu
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          ports:
+            - name: http
+              containerPort: 3080
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - curl -sS -o /dev/null --max-time 2 http://127.0.0.1:3081/
+            initialDelaySeconds: 15
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - curl -sS -o /dev/null --max-time 2 http://127.0.0.1:3081/
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              memory: 2Gi
+          volumeMounts:
+            - name: home
+              mountPath: /data/dsh
+            - name: agent-presets
+              mountPath: /data/dsh/.agent-presets
+              readOnly: true
+      volumes:
+        - name: home
+          persistentVolumeClaim:
+            claimName: kaiwu-console-home
+        - name: agent-presets
+          persistentVolumeClaim:
+            claimName: kaiwu-agent-presets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kaiwu-console
+  namespace: kaiwu
+  labels:
+    app: kaiwu
+    component: console
+    kaiwu.cn/instance: console
+spec:
+  type: ClusterIP
+  selector:
+    app: kaiwu
+    component: console
+    kaiwu.cn/instance: console
+  ports:
+    - name: http
+      port: 3080
+      targetPort: http
+---
+# kaiwu-console-public 是开物 Console 的浏览器入口。开物页面依赖根路径
+# 绝对资源（/assets、/plugins、/api），无法在 ANI 子路径下运行，因此让
+# 开物独占一个 origin；ANI 网关只负责鉴权并下发该 origin 的入口地址。
+apiVersion: v1
+kind: Service
+metadata:
+  name: kaiwu-console-public
+  namespace: kaiwu
+  labels:
+    app: kaiwu
+    component: console
+    kaiwu.cn/instance: console
+spec:
+  type: NodePort
+  selector:
+    app: kaiwu
+    component: console
+    kaiwu.cn/instance: console
+  ports:
+    - name: http
+      port: 3080
+      targetPort: http
+      nodePort: 30088

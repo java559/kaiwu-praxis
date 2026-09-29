@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kaiwu-web-token-publisher
+  namespace: kaiwu
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kaiwu-web-token-publisher
+  namespace: kaiwu
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    resourceNames:
+      - kaiwu-console-web-token
+      - kaiwu-boss-web-token
+    verbs:
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kaiwu-web-token-publisher
+  namespace: kaiwu
+subjects:
+  - kind: ServiceAccount
+    name: kaiwu-web-token-publisher
+    namespace: kaiwu
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kaiwu-web-token-publisher
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: kaiwu-web-token-reader
+  namespace: kaiwu
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - secrets
+    resourceNames:
+      - kaiwu-console-web-token
+      - kaiwu-boss-web-token
+    verbs:
+      - get
+---
+# 只授权 ani-system 下的 ani-gateway 读取 webToken：开物入口 API 的最小
+# 权限就是「读这两个 Secret」。其他命名空间接入开物时需自行追加绑定。
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: kaiwu-web-token-reader
+  namespace: kaiwu
+subjects:
+  - kind: ServiceAccount
+    name: ani-gateway
+    namespace: ani-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: kaiwu-web-token-reader

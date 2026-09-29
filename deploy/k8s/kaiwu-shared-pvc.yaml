@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: kaiwu-agent-presets
+  namespace: kaiwu
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: kaiwu-cephfs
+  resources:
+    requests:
+      storage: 5Gi

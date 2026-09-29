@@ -15,7 +15,9 @@ import {
 } from '../lib/k8s-core.mjs'
 
 // ---- 模式判定矩阵 ----
-assert.equal(k8sModeFromEnv({}), 'demo')                                     // auto + 无 SA 文件 → demo
+assert.equal(k8sModeFromEnv({}), 'demo')                                     // auto + 无 SA 文件 → demo（走真实 node:fs 默认路径）
+// 回归：默认 fsAccess 必须接真实 existsSync（曾误接恒 false 的桩导致线上永远 demo）
+assert.equal(k8sModeFromEnv({ KAIWU_K8S_MODE: 'auto' }, { existsSync: (p) => p === '/var/run/secrets/kubernetes.io/serviceaccount/token' }), 'live')
 assert.equal(k8sModeFromEnv({}, { existsSync: (p) => p.includes('serviceaccount') }), 'live') // auto + SA → live
 assert.equal(k8sModeFromEnv({ KAIWU_K8S_MODE: 'live' }), 'live')
 assert.equal(k8sModeFromEnv({ KAIWU_K8S_MODE: 'demo' }), 'demo')
